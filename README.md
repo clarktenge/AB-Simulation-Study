@@ -52,5 +52,40 @@ In this study, we simulate **10,000 experiments per scenario** under combination
 - Paired t-tests and effect size plots show significant and consistent trends
 - Code saves summary tables and ggplot2 visualizations of results
 
+## 📁 Project Structure
+
+ab_test_robustness/
+│
+├── FinalProjectCodeBehind.Rmd # R Markdown file with full simulation and analysis
+├── Clark-Enge---PSTAT-122-Final-Project.pdf # Final report (written analysis)
+├── results_df.rds # Saved simulation results (power values per scenario)
+├── diff_summary.rds # Paired t-test comparison table
+├── power_curves_es_tt.rds # Power curves by effect size
+├── power_curves_outlier.rds # Power curves by outlier %
+├── dist_differences.rds # Boxplot data for power differences between tests
+├── power_diff.rds # Boxplot data for power distributions
+├── README.md # Project documentation (this file)
+
+yaml
+Copy
+Edit
+
+---
+
+## 📦 Dependencies
+
+This project was developed using R. To run the simulation and generate the report, ensure the following packages are installed:
+
+### Required R Packages
+
+```r
+install.packages(c(
+  "tidyverse",    # Data wrangling and plotting
+  "ggplot2",      # Plotting power curves and boxplots
+  "knitr",        # Report generation
+  "kableExtra",   # Table formatting
+  "dplyr",        # Data manipulation
+  "broom"         # Tidying test outputs
+
 ---
 
