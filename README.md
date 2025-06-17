@@ -54,29 +54,6 @@ In this study, we simulate **10,000 experiments per scenario** under combination
 
 ## 📁 Project Structure
 
-ab_test_robustness/
-│
-├── FinalProjectCodeBehind.Rmd # R Markdown file with full simulation and analysis
-├── Clark-Enge---PSTAT-122-Final-Project.pdf # Final report (written analysis)
-├── results_df.rds # Saved simulation results (power values per scenario)
-├── diff_summary.rds # Paired t-test comparison table
-├── power_curves_es_tt.rds # Power curves by effect size
-├── power_curves_outlier.rds # Power curves by outlier %
-├── dist_differences.rds # Boxplot data for power differences between tests
-├── power_diff.rds # Boxplot data for power distributions
-├── README.md # Project documentation (this file)
-
-yaml
-Copy
-Edit
-
----
-
-## 📦 Dependencies
-
-This project was developed using R. To run the simulation and generate the report, ensure the following packages are installed:
-
-### Required R Packages
 ```
 ├── FinalProjectCodeBehind.Rmd # R Markdown file with full simulation and analysis
 ├── Clark-Enge---PSTAT-122-Final-Project.pdf # Final report (written analysis)
@@ -87,6 +64,24 @@ This project was developed using R. To run the simulation and generate the repor
 ├── dist_differences.rds # Boxplot data for power differences between tests
 ├── power_diff.rds # Boxplot data for power distributions
 ├── README.md # Project documentation (this file)
+```
+
+---
+
+## 📦 Dependencies
+
+This project was developed using R. To run the simulation and generate the report, ensure the following packages are installed:
+
+### Required R Packages
+```
+install.packages(c(
+  "tidyverse",     # For data manipulation and visualization
+  "knitr",         # For dynamic report generation
+  "rmarkdown",     # To knit .Rmd to HTML/PDF
+  "ggplot2",       # For plotting
+  "dplyr",         # For data wrangling
+  "tidyr",         # For data formatting
+))
 ```
 ---
 
