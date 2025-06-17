@@ -77,15 +77,25 @@ Edit
 This project was developed using R. To run the simulation and generate the report, ensure the following packages are installed:
 
 ### Required R Packages
-
-```r
-install.packages(c(
-  "tidyverse",    # Data wrangling and plotting
-  "ggplot2",      # Plotting power curves and boxplots
-  "knitr",        # Report generation
-  "kableExtra",   # Table formatting
-  "dplyr",        # Data manipulation
-  "broom"         # Tidying test outputs
-
+```
+├── FinalProjectCodeBehind.Rmd # R Markdown file with full simulation and analysis
+├── Clark-Enge---PSTAT-122-Final-Project.pdf # Final report (written analysis)
+├── results_df.rds # Saved simulation results (power values per scenario)
+├── diff_summary.rds # Paired t-test comparison table
+├── power_curves_es_tt.rds # Power curves by effect size
+├── power_curves_outlier.rds # Power curves by outlier %
+├── dist_differences.rds # Boxplot data for power differences between tests
+├── power_diff.rds # Boxplot data for power distributions
+├── README.md # Project documentation (this file)
+```
 ---
 
+## How to Run
+1. Clone the repository:
+```
+git clone https://github.com/yourusername/AB-Simulation-Study.git
+cd AB-Simulation-Study
+```
+2. Open **AB-Simulation-Study.Rmd** in RStudio
+3. Install required dependencies
+4. Run the analysis by knitting the R Markdown file to a pdf
