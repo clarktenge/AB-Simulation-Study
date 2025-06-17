@@ -1,0 +1,294 @@
+---
+title: "Final Project Code"
+author: "Clark Enge"
+output: pdf_document
+---
+
+
+# Simulation plan
+
+
+## 1. Set up each scenario
+```{r}
+
+# Define all scenarios
+scenarios <- expand.grid(
+  effect_size = c(0, 0.1, 0.2, 0.3, 0.5),        # Include 0 for Type I error analysis
+  sample_size = c(10, 30, 50, 100),
+  outlier_percent = c(0, 2.5, 5, 10, 15)
+)
+
+# Number of simulations per scenario
+n_sim <- 10000
+
+# Set seed for reproducibility
+set.seed(12345)
+```
+
+## 2. Generate data
+
+
+Generate normal data(base mean = 60, SD = 10)
+Shift group B mean by d * sd
+add outliers of x% values of 200
+
+```{r}
+generate_data <- function(n, effect, outlier_percent, base_mean = 60, sd = 10) {
+  n_clean <- round(n * (1 - outlier_percent / 100))
+  n_outlier <- n - n_clean
+  
+  # Add slight variance and mean noise
+  mu1 <- base_mean + rnorm(1, 0, 2)
+  mu2 <- base_mean + effect * sd + rnorm(1, 0, 2)
+  sd1 <- sd
+  sd2 <- sd + abs(effect) * 5 + runif(1, 0, 5)
+  
+  # Group A: clean, no outliers
+  group1 <- rnorm(n, mu1, sd1)
+  group1 <- pmax(group1, 0)  # enforce non-negative time
+
+  # Group B: clean data + positive-skewed outliers
+  clean_b <- rnorm(n_clean, mu2, sd2)
+  clean_b <- pmax(clean_b, 0)
+
+  outliers_b <- rnorm(n_outlier, mean = mu2 + 100, sd = 40)  # large values only
+  outliers_b <- pmax(outliers_b, 0)
+
+  group2 <- c(clean_b, outliers_b)
+
+  list(
+    group1 = group1,
+    group2 = group2
+  )
+}
+```
+
+## 3. Apply the tests
+
+
+You can also use WRS2::yuen() for robust trimmed mean 
+t-test for formal implementation
+```{r}
+# Function to run three different t-tests on group data
+run_tests <- function(a, b) {
+  t_equal <- t.test(a, b, var.equal = TRUE)$p.value
+  t_welch <- t.test(a, b, var.equal = FALSE)$p.value
+  t_trim  <- t.test(a, b, var.equal = TRUE, trim = 0.1)$p.value
+
+  list(
+    t = t_equal,
+    welch = t_welch,
+    trimmed = t_trim
+  )
+}
+
+# Quick test
+test_data <- generate_data(n = 10, effect = 0.2, outlier_percent = 10)
+run_tests(test_data$group1, test_data$group2)
+```
+
+
+## 4. Run tests and store results
+```{r}
+# Initialize results data frame
+results_df <- data.frame()
+
+# Loop over all scenarios
+for (i in 1:nrow(scenarios)) {
+  effect   <- scenarios$effect_size[i]
+  sample   <- scenarios$sample_size[i]
+  outlier  <- scenarios$outlier_percent[i]
+
+  sig_t <- sig_welch <- sig_trim <- 0
+
+  for (sim in 1:n_sim) {
+    data <- generate_data(n = sample, effect = effect, outlier_percent = outlier)
+    p_vals <- run_tests(data$group1, data$group2)
+
+    sig_t     <- sig_t     + (p_vals$t < 0.05)
+    sig_welch <- sig_welch + (p_vals$welch < 0.05)
+    sig_trim  <- sig_trim  + (p_vals$trimmed < 0.05)
+  }
+  
+  # Store power (or Type I error if effect_size == 0)
+  results_df <- rbind(results_df, data.frame(
+    effect_size = effect,
+    sample_size = sample,
+    outlier_percent = outlier,
+    power_t      = sig_t / n_sim,
+    power_welch  = sig_welch / n_sim,
+    power_trim   = sig_trim / n_sim
+  ))
+}
+
+print(results_df)
+```
+
+## 5. Compute differences between methods and run paired t-tests between methods
+
+Compute differences
+```{r}
+results_df$diff_trim_vs_t  <- results_df$power_trim - results_df$power_t
+
+results_df$diff_welch_vs_t <- results_df$power_welch - results_df$power_t
+
+results_df$diff_trim_vs_welch <- results_df$power_trim - results_df$power_welch
+```
+
+Pair t-tests between methods
+```{r}
+# Full dataset comparisons
+t1 <- t.test(results_df$power_trim, results_df$power_t, paired = TRUE)
+t2 <- t.test(results_df$power_welch, results_df$power_t, paired = TRUE)
+t3 <- t.test(results_df$power_trim, results_df$power_welch, paired = TRUE)
+
+# Optional: on outlier-only subset
+outlier_df <- subset(results_df, outlier_percent > 0)
+t1_out <- t.test(outlier_df$power_trim, outlier_df$power_t, paired = TRUE)
+t2_out <- t.test(outlier_df$power_welch, outlier_df$power_t, paired = TRUE)
+t3_out <- t.test(outlier_df$power_trim, outlier_df$power_welch, paired = TRUE)
+```
+
+Format into table
+```{r}
+library(knitr)
+
+# Build table from the full dataset
+diff_summary <- data.frame(
+  Comparison = c("Trimmed vs t-test", "Welch vs t-test", "Trimmed vs Welch"),
+  Mean_Difference = round(c(
+    mean(results_df$power_trim - results_df$power_t),
+    mean(results_df$power_welch - results_df$power_t),
+    mean(results_df$power_trim - results_df$power_welch)
+  ), 4),
+  p_value = signif(c(t1$p.value, t2$p.value, t3$p.value), 4)
+)
+
+kable(diff_summary, caption = "Paired t-test Comparison of Average Power Between A/B Testing Methods")
+```
+
+Visualize power differences
+```{r}
+library(ggplot2)
+library(tidyr)
+
+# Reshape to long format for boxplot
+results_long <- pivot_longer(
+  results_df,
+  cols = c("power_t", "power_welch", "power_trim"),
+  names_to = "test_type",
+  values_to = "power"
+)
+
+power_diff <- ggplot(results_long, aes(x = test_type, y = power, fill = test_type)) +
+  geom_boxplot(alpha = 0.7) +
+  labs(title = "Distribution of Power Across Test Types",
+       x = "Test Type", y = "Power") +
+  theme_minimal() +
+  theme(legend.position = "none")
+power_diff
+```
+
+Plot the differences in power between pairs
+```{r}
+# Compute pairwise differences
+results_df$diff_trim_vs_t <- results_df$power_trim - results_df$power_t
+results_df$diff_welch_vs_t <- results_df$power_welch - results_df$power_t
+results_df$diff_trim_vs_welch <- results_df$power_trim - results_df$power_welch
+
+# Combine into long format
+diffs_long <- pivot_longer(
+  results_df,
+  cols = c(diff_trim_vs_t, diff_welch_vs_t, diff_trim_vs_welch),
+  names_to = "comparison",
+  values_to = "difference"
+)
+
+# Rename for cleaner plot labels
+diffs_long$comparison <- factor(diffs_long$comparison,
+  levels = c("diff_trim_vs_t", "diff_welch_vs_t", "diff_trim_vs_welch"),
+  labels = c("Trimmed - t", "Welch - t", "Trimmed - Welch")
+)
+
+# Plot distribution of differences
+dist_differences <- ggplot(diffs_long, aes(x = comparison, y = difference, fill = comparison)) +
+  geom_boxplot(alpha = 0.7) +
+  labs(title = "Distribution of Power Differences Between Tests",
+       x = "Comparison", y = "Power Difference") +
+  theme_minimal() +
+  theme(legend.position = "none")
+dist_differences
+```
+
+Power Curves by Effect Size and Test Type
+```{r}
+# Plot power curves
+power_curves_es_tt <- ggplot(results_long, aes(x = effect_size, y = power,
+                         color = test_type, linetype = test_type, shape = test_type,
+                         group = test_type)) +
+  stat_summary(fun = mean, geom = "line", linewidth = 1.2) +
+  stat_summary(fun = mean, geom = "point", size = 2.5) +
+  scale_color_manual(values = c("power_t" = "#D55E00", "power_trim" = "#009E73", "power_welch" = "#0072B2")) +
+  labs(title = "Power Curves by Test Type",
+       x = "Effect Size", y = "Average Power",
+       color = "Test Type", linetype = "Test Type", shape = "Test Type") +
+  theme_minimal() +
+  theme(panel.grid.minor = element_blank(),
+        panel.grid.major = element_line(color = "gray90"))
+power_curves_es_tt
+```
+
+Facet by outlier percent
+```{r}
+power_curves_outlier <- ggplot(results_long, aes(x = effect_size, y = power,
+                         color = test_type, linetype = test_type, shape = test_type,
+                         group = test_type)) +
+  stat_summary(fun = mean, geom = "line", linewidth = 1.2) +
+  stat_summary(fun = mean, geom = "point", size = 2.5) +
+  facet_wrap(~ outlier_percent, labeller = label_both) +
+  scale_color_manual(values = c("power_t" = "#D55E00", "power_trim" = "#009E73", "power_welch" = "#0072B2")) +
+  labs(title = "Power Curves by Outlier % and Test Type",
+       x = "Effect Size", y = "Power",
+       color = "Test Type", linetype = "Test Type", shape = "Test Type") +
+  theme_minimal() +
+  theme(panel.grid.minor = element_blank(),
+        panel.grid.major = element_line(color = "gray90"))
+power_curves_outlier
+```
+
+# Takeaways
+
+## 1.
+
+The Standard t-test performs well under ideal conditions. When the assumptions of normality, equal variances, and balanced sample sizes are met, all three tests -- the standard t-test, the Welch's t-test, and the trimmed t-test -- all behave similarly, with power increasing as effect size grows
+
+## 2.
+The trimmed t-test has an increased power in the high outlier percentages of around 10-15%, meaning it outpeforms the other two tests, espeically with small to moderate sample sizes. It does this by trimming outliers and avoids skew by cause of extreme values.
+
+## 3.)
+The Welch's t-test helps with unequal variances. When the generate_data() function creates variable standard deviations and variances, the Welch's test accounts for this even if it is marginally more conservative than the other two tests, meaning it loses power.
+
+## 4.) 
+Both the paired t-tests and boxplots show real but small differences where the trimmed t-test outperfomrs the standard t in high outlier conditions.
+The Welch's test performs worse than the standard t, but at the cost of being more conservative as expected.
+The differences are stronger with smaller sample sizes and higher effect sizes.
+
+
+## In the real world
+
+You would want to use the standard t-test if you have clean data and equal variance. You would use the Welch's test with unequal group sizes or different variances. You would use the trimmed t-test if you have a known skewed distriubtion or have outliers. 
+
+All in all, the default test for A/B testing in production should be Welch, just to be safe, or Trimmed if you know that there will be a skewed distribution or have a lot of outliers.
+
+Default to the Welch's test as your go-to, but consider using the trimmed t-test for user behavior data where there is often skew and outliers.
+
+
+Saving of results
+```{r}
+saveRDS(results_df, "results_df.rds")
+saveRDS(diff_summary, "diff_summary.rds")
+saveRDS(power_curves_es_tt, 'power_curves_es_tt.rds')
+saveRDS(power_curves_outlier, 'power_curves_outlier.rds')
+saveRDS(dist_differences, 'dist_differences.rds')
+saveRDS(power_diff, 'power_diff.rds')
+```
